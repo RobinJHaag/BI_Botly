@@ -1,139 +1,151 @@
-from shiny import App, ui, render
-import pandas as pd
-import sqlite3
+from shiny import App, ui, render, reactive
 import matplotlib.pyplot as plt
+import pandas as pd
 from datetime import datetime, timedelta
+import sqlite3
 
 
 def hol_ticket_und_refund_daten():
-    steckdose = sqlite3.connect("botly.db")
-    ticket_akte = pd.read_sql_query("""
-        SELECT p.product_name, d.date_value
+    dashboard_connector = sqlite3.connect("botly.db")
+    tickets = pd.read_sql_query("""
+        SELECT p.product_name, d.date_value, c.channel_name
         FROM support_tickets s
         JOIN products p ON s.product_id = p.product_id
         JOIN dates d ON s.date_id = d.date_id
-    """, steckdose)
-    refund_akte = pd.read_sql_query("""
+        JOIN channels c ON s.channel_id = c.channel_id
+    """, dashboard_connector)
+    refunds = pd.read_sql_query("""
         SELECT p.product_name, r.approved, d.date_value
         FROM refund_requests r
         JOIN products p ON r.product_id = p.product_id
         JOIN dates d ON r.date_id = d.date_id
-    """, steckdose)
-    steckdose.close()
-    ticket_akte["date_value"] = pd.to_datetime(ticket_akte["date_value"])
-    refund_akte["date_value"] = pd.to_datetime(refund_akte["date_value"])
-    return ticket_akte, refund_akte
+    """, dashboard_connector)
+    dashboard_connector.close()
+    tickets["date_value"] = pd.to_datetime(tickets["date_value"])
+    refunds["date_value"] = pd.to_datetime(refunds["date_value"])
+    return tickets, refunds
 
+
+def simple_plot(title="Demoplot"):
+    fig, ax = plt.subplots(figsize=(20, 10))
+    fig.patch.set_facecolor('#001F3F')
+    ax.bar(["A", "B", "C"], [5, 7, 3], color="#6A0DAD")
+    ax.set_title(title, color='white', fontsize=24)
+    ax.tick_params(colors='white')
+    ax.spines['bottom'].set_color('white')
+    ax.spines['left'].set_color('white')
+    ax.set_facecolor('#001F3F')
+    return fig
+
+
+custom_style = """
+<style>
+    .nav-link {
+        border: 2px solid #CC1E4A !important;
+        color: white !important;
+        background-color: #001F3F !important;
+        margin-right: 10px;
+        font-weight: bold;
+        border-radius: 4px;
+    }
+
+    .nav-link.active, .nav-tabs .nav-item.show .nav-link {
+        background-color: #CC1E4A !important;
+        color: #001F3F !important;
+    }
+
+    .shiny-input-radiogroup {
+        margin-top: 24px;
+    }
+
+    .form-check {
+        margin-top: 4px;
+    }
+    
+    .form-check-input:checked + .form-check-label {
+        background-color: #CC1E4A !important;
+        color: #001F3F !important;
+        border-radius: 4px;
+        padding: 6px 12px;
+        font-weight: bold;
+    }
+
+    .form-check-label {
+        background-color: #001F3F;
+        color: white;
+        border: 2px solid #CC1E4A;
+        border-radius: 4px;
+        margin-right: 10px;
+        padding: 6px 12px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+</style>
+"""
 
 interface = ui.page_fluid(
-    ui.h1(ui.span("Botly", style="color:#FF5E3A; font-weight:bold"), " Dashboard – letzte 14 Tage",
-          style="color:#FFFFFF; background-color:#001F3F; padding:10px; border-radius:5px; text-align:center;"),
-    ui.output_plot("ticket_diagramm"),
-    ui.output_plot("refund_diagramm"),
-    ui.output_text("refund_rate")
+    ui.HTML(custom_style),
+    ui.navset_tab(
+        ui.nav_panel("BI Customer Support",
+            ui.input_radio_buttons("support_view", "",
+                choices=["Ticketübersicht", "Kanalvergleich", "Supportkosten"],
+                selected="Ticketübersicht",
+                inline=True
+            ),
+            ui.output_ui("support_view_output")
+        ),
+
+        ui.nav_panel("BI Produkte",
+            ui.input_radio_buttons("produkt_view", "",
+                choices=["Supportkosten pro Produkt", "Refunds & Replacements", "Auffällige Produkte"],
+                selected="Supportkosten pro Produkt",
+                inline=True
+            ),
+            ui.output_ui("produkt_view_output")
+        ),
+
+        id="dashboard_tabs"
+    ),
+    style="background-color:#001F3F; padding:30px; width:100%;"
 )
 
 
-def dashboard(inputs, outputs, session):
-    @outputs
+def server(input, output, session):
+    @render.ui
+    def support_view_output():
+        match input.support_view():
+            case "Ticketübersicht":
+                return ui.output_plot("plot_tickets")
+            case "Kanalvergleich":
+                return ui.HTML("<p style='color:white'>Kanalvergleich kommt später...</p>")
+            case "Supportkosten":
+                return ui.HTML("<p style='color:white'>Supportkosten-Ansicht in Arbeit...</p>")
+
+    output.support_view_output = support_view_output
+
     @render.plot
-    def ticket_diagramm():
-        tickets, _ = hol_ticket_und_refund_daten()
-        zeitraum_start = datetime.today() - timedelta(days=14)
-        letzte = tickets[tickets["date_value"] >= zeitraum_start]
-        anzahl_pro_produkt = letzte["product_name"].value_counts()
+    def plot_tickets():
+        return simple_plot("Dummy: Ticketübersicht")
 
-        fig, ax = plt.subplots(figsize=(20, 12))
-        fig.patch.set_facecolor('#001F3F')
+    output.plot_tickets = plot_tickets
 
-        bars = anzahl_pro_produkt.plot(kind="bar", ax=ax, color="#6A0DAD", width=0.6)
+    @render.ui
+    def produkt_view_output():
+        match input.produkt_view():
+            case "Supportkosten pro Produkt":
+                return ui.output_plot("plot_produktkosten")
+            case "Refunds & Replacements":
+                return ui.HTML("<p style='color:white'>Refund & Replacement Analyse folgt...</p>")
+            case "Auffällige Produkte":
+                return ui.HTML("<p style='color:white'>Outlier Detection kommt bald...</p>")
 
-        ax.set_title("Support-Tickets je Produkt", fontsize=24, fontweight='bold', color='white', pad=30)
-        ax.set_ylabel("Anzahl Tickets", fontsize=18, labelpad=20, color='white')
-        ax.set_xlabel("Produkt", fontsize=18, labelpad=20, color='white')
+    output.produkt_view_output = produkt_view_output
 
-        for bar in bars.patches:
-            höhe = bar.get_height()
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                höhe / 2,
-                f'{int(höhe)}',
-                ha='center',
-                va='center',
-                fontsize=18,
-                color='white',
-                fontweight='bold'
-            )
-
-        ax.set_xticklabels(anzahl_pro_produkt.index, rotation=0, fontsize=11, color='white')
-        ax.tick_params(axis='x', pad=10, colors='white')
-        ax.tick_params(axis='y', colors='white')
-
-        ax.spines['bottom'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.spines['top'].set_color('none')
-        ax.spines['right'].set_color('none')
-
-        plt.subplots_adjust(bottom=0.3, top=0.9, left=0.1, right=0.95)
-        plt.tight_layout()
-        return fig
-
-    @outputs
     @render.plot
-    def refund_diagramm():
-        _, refunds = hol_ticket_und_refund_daten()
-        zeitraum_start = datetime.today() - timedelta(days=14)
-        letzte = refunds[refunds["date_value"] >= zeitraum_start]
-        rückgaben = letzte["product_name"].value_counts()
+    def plot_produktkosten():
+        return simple_plot("Dummy: Supportkosten pro Produkt")
 
-        fig, ax = plt.subplots(figsize=(20, 12))
-        fig.patch.set_facecolor('#001F3F')  # Navy background
-
-        bars = rückgaben.plot(kind="bar", ax=ax, color="#FF5E3A", width=0.6)
-
-        ax.set_title("Refunds je Produkt", fontsize=24, fontweight='bold', color='white', pad=30)
-        ax.set_ylabel("Anzahl Refunds", fontsize=18, labelpad=20, color='white')
-        ax.set_xlabel("Produkt", fontsize=18, labelpad=20, color='white')
-
-        for bar in bars.patches:
-            höhe = bar.get_height()
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                höhe / 2,
-                f'{int(höhe)}',
-                ha='center',
-                va='center',
-                fontsize=18,
-                color='white',
-                fontweight='bold'
-            )
-
-        ax.set_xticklabels(rückgaben.index, rotation=0, fontsize=12, color='white')
-        ax.tick_params(axis='x', pad=10, colors='white')
-        ax.tick_params(axis='y', colors='white')
-
-        ax.spines['bottom'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.spines['top'].set_color('none')
-        ax.spines['right'].set_color('none')
-
-        plt.subplots_adjust(bottom=0.3, top=0.9, left=0.1, right=0.95)
-        plt.tight_layout()
-        return fig
-
-    @outputs
-    @render.text
-    def refund_rate():
-        tickets, refunds = hol_ticket_und_refund_daten()
-        zeitraum_start = datetime.today() - timedelta(days=14)
-        t = tickets[tickets["date_value"] >= zeitraum_start]
-        r = refunds[refunds["date_value"] >= zeitraum_start]
-        if len(t) == 0:
-            return "keine tickets gefunden"
-        anteil = len(r) / len(t)
-        return f"<span style='color:white; padding-left:20px; font-size:18px;'>refund-rate: {round(anteil * 100, 1)} %</span>"
-
-    refund_rate._render_args = {"unsafe_allow_html": True}
+    output.plot_produktkosten = plot_produktkosten
 
 
-app = App(interface, dashboard)
+app = App(interface, server)

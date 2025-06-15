@@ -4,21 +4,38 @@ import os
 
 def dew_it():
     if os.path.exists("botly.db"):
-        os.remove("botly.db")  # not from a Jedi
-    con = sqlite3.connect("botly.db")
-    cur = con.cursor()
-    cur.executescript("""
+        os.remove("botly.db")
+
+    datenbank_connector = sqlite3.connect("botly.db")
+    datenbank_cursor = datenbank_connector.cursor()
+
+    datenbank_cursor.executescript("""
     DROP TABLE IF EXISTS refund_requests;
     DROP TABLE IF EXISTS support_tickets;
     DROP TABLE IF EXISTS products;
+    DROP TABLE IF EXISTS customers;
+    DROP TABLE IF EXISTS support_employees;
     DROP TABLE IF EXISTS channels;
     DROP TABLE IF EXISTS issue_types;
     DROP TABLE IF EXISTS dates;
-
+    DROP TABLE IF EXISTS replacements_requests;
+    
     CREATE TABLE products (
         product_id INTEGER PRIMARY KEY,
         product_name TEXT NOT NULL,
         category TEXT NOT NULL
+    );
+
+    CREATE TABLE customers (
+        customer_id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        region TEXT NOT NULL
+    );
+
+    CREATE TABLE support_employees (
+        employee_id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        hourly_wage NUMERIC NOT NULL
     );
 
     CREATE TABLE channels (
@@ -41,10 +58,15 @@ def dew_it():
 
     CREATE TABLE support_tickets (
         ticket_id INTEGER PRIMARY KEY,
+        customer_id INTEGER NOT NULL,
+        employee_id INTEGER NOT NULL,
         product_id INTEGER NOT NULL,
         channel_id INTEGER NOT NULL,
         issue_type_id INTEGER NOT NULL,
         date_id INTEGER NOT NULL,
+        handling_time_minutes INTEGER NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (employee_id) REFERENCES support_employees(employee_id),
         FOREIGN KEY (product_id) REFERENCES products(product_id),
         FOREIGN KEY (channel_id) REFERENCES channels(channel_id),
         FOREIGN KEY (issue_type_id) REFERENCES issue_types(issue_type_id),
@@ -54,21 +76,42 @@ def dew_it():
     CREATE TABLE refund_requests (
         refund_id INTEGER PRIMARY KEY,
         ticket_id INTEGER,
+        customer_id INTEGER NOT NULL,
+        employee_id INTEGER NOT NULL,
         product_id INTEGER NOT NULL,
         channel_id INTEGER NOT NULL,
         date_id INTEGER NOT NULL,
+        handling_time_minutes INTEGER NOT NULL,
         amount NUMERIC NOT NULL,
         approved BOOLEAN NOT NULL,
         FOREIGN KEY (ticket_id) REFERENCES support_tickets(ticket_id),
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (employee_id) REFERENCES support_employees(employee_id),
         FOREIGN KEY (product_id) REFERENCES products(product_id),
         FOREIGN KEY (channel_id) REFERENCES channels(channel_id),
         FOREIGN KEY (date_id) REFERENCES dates(date_id)
     );
+    
+    CREATE TABLE replacements_requests (
+        replacement_id INTEGER PRIMARY KEY,
+        ticket_id INTEGER,
+        customer_id INTEGER NOT NULL,
+        employee_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL,
+        date_id INTEGER NOT NULL,
+        handling_time_minutes INTEGER NOT NULL,
+        approved BOOLEAN NOT NULL,
+        FOREIGN KEY (ticket_id) REFERENCES support_tickets(ticket_id),
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (employee_id) REFERENCES support_employees(employee_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id),
+        FOREIGN KEY (channel_id) REFERENCES channels(channel_id),
+        FOREIGN KEY (date_id) REFERENCES dates(date_id)
+    );
+
     """)
-    con.commit()
-    con.close()
+
+    datenbank_connector.commit()
+    datenbank_connector.close()
     print("The data side of the Force is strong with this one.")
-
-
-if __name__ == "__main__":
-    dew_it()
