@@ -1,15 +1,16 @@
-import sqlite3
-import os
+import sqlite3 as datebank
+import os as operatingsystem
 
 
 def dew_it():
-    if os.path.exists("botly.db"):
-        os.remove("botly.db")
+    gits_db_no = operatingsystem.path.exists("botly.db")
+    if gits_db_no:
+        operatingsystem.remove("botly.db")
 
-    datenbank_connector = sqlite3.connect("botly.db")
-    datenbank_cursor = datenbank_connector.cursor()
+    datebank_connector = datebank.connect("botly.db")
+    sql_magicstick = datebank_connector.cursor()
 
-    datenbank_cursor.executescript("""
+    sql_magicstick.executescript("""
     DROP TABLE IF EXISTS refund_requests;
     DROP TABLE IF EXISTS support_tickets;
     DROP TABLE IF EXISTS products;
@@ -19,11 +20,12 @@ def dew_it():
     DROP TABLE IF EXISTS issue_types;
     DROP TABLE IF EXISTS dates;
     DROP TABLE IF EXISTS replacements_requests;
-    
+
     CREATE TABLE products (
         product_id INTEGER PRIMARY KEY,
         product_name TEXT NOT NULL,
-        category TEXT NOT NULL
+        category TEXT NOT NULL,
+        price Integer NOT NULL 
     );
 
     CREATE TABLE customers (
@@ -46,6 +48,15 @@ def dew_it():
     CREATE TABLE issue_types (
         issue_type_id INTEGER PRIMARY KEY,
         issue_label TEXT NOT NULL
+    );
+
+    CREATE TABLE sales (
+        sale_id INTEGER PRIMARY KEY,
+        product_id INTEGER NOT NULL,
+        date_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        FOREIGN KEY (product_id) REFERENCES products(product_id),
+        FOREIGN KEY (date_id) REFERENCES dates(date_id)
     );
 
     CREATE TABLE dates (
@@ -91,7 +102,7 @@ def dew_it():
         FOREIGN KEY (channel_id) REFERENCES channels(channel_id),
         FOREIGN KEY (date_id) REFERENCES dates(date_id)
     );
-    
+
     CREATE TABLE replacements_requests (
         replacement_id INTEGER PRIMARY KEY,
         ticket_id INTEGER,
@@ -109,9 +120,8 @@ def dew_it():
         FOREIGN KEY (channel_id) REFERENCES channels(channel_id),
         FOREIGN KEY (date_id) REFERENCES dates(date_id)
     );
-
     """)
 
-    datenbank_connector.commit()
-    datenbank_connector.close()
+    datebank_connector.commit()
+    datebank_connector.close()
     print("The data side of the Force is strong with this one.")
